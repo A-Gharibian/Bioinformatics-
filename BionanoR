@@ -1,1 +1,65 @@
-# converting smap into working tables
+#SNR Histogram plot
+paste0 <- function( ... ) {
+	paste( ... , sep="" );
+}
+
+args <- commandArgs(trailingOnly = FALSE);
+script_name = sub("^--file=", "", args[grep("^--file=", args)]);
+args <- commandArgs(trailingOnly = TRUE);
+
+if( length(args) != 5 ){
+	cat("Usage:\n ", script_name, "<BNX_name> <input_datafile> <PDF_filename> <SNR_value_1> <SNR_value_2>\n");
+	stop("Please provide the correct number of arguments!\n");
+}
+
+bnxFile = args[1];
+inFile = args[2];
+pdfFile = args[3];
+
+SNR_cutoff = c();
+log_SNR_cutoff = c();
+if( args[4] == "NA"){
+	SNR_cutoff[1] = -1;
+} else{
+	SNR_cutoff[1] = as.numeric(args[4]);
+}
+if( args[5] == "NA"){
+	SNR_cutoff[2] = -1;
+} else{
+	SNR_cutoff[2] = as.numeric(args[5]);
+}
+if(SNR_cutoff[1] == -1 && SNR_cutoff[2] == -1){
+	quit();
+}
+
+if( !file.exists(inFile) ) {
+	stop("Could not open input file (", inFile, ") for reading!");
+}
+
+input_table = read.table(inFile);
+
+pdf(pdfFile);
+for(i in 1:length(SNR_cutoff)){
+	if( SNR_cutoff[i] == -1 ){
+		next;
+	} else{
+		log_SNR_cutoff[i] = log(SNR_cutoff[i]);
+	}
+	SNR_tmp = input_table[input_table$V1==i, c(2,3,5)];
+	SNR = SNR_tmp[min(which(SNR_tmp$V5!=0)) : nrow(SNR_tmp), ];
+	h = hist(0, plot=F);
+	h$breaks = c(SNR$V2, 2 * SNR$V2[nrow(SNR)] - SNR$V2[nrow(SNR)-1]);
+	h$mids = SNR$V3;
+	h$counts = SNR$V5;
+	h$density = 0;
+	
+	plot(h, xlab="Log(SNR) values", ylab="Count", xlim=c(0,max(h$mids)), main=paste0("Histogram of log(SNR) values\n(", basename(bnxFile), ")\nChannel ", i));
+	lines(smooth.spline(h$mids, h$counts), type="l", col="blue", lty="longdash", lwd=3);
+	abline(v = log_SNR_cutoff[i], lty="dashed", col="red");
+	if(log_SNR_cutoff[i] <= max(h$mids)*2/3){
+		text(log_SNR_cutoff[i], max(h$counts)*0.95, paste0("log(SNR_cutoff)=", sprintf("%.3f", log_SNR_cutoff[i]), "\nSNR_cutoff=", sprintf("%.3f", SNR_cutoff[i])), pos=4, cex=1.25);
+	} else{
+		text(log_SNR_cutoff[i] - max(h$mids)/3, max(h$counts)*0.95, paste0("log(SNR_cutoff)=", sprintf("%.3f", log_SNR_cutoff[i]), "\nSNR_cutoff=", sprintf("%.3f", SNR_cutoff[i])), pos=4, cex=1.25);
+	}
+}
+invisible(dev.off());
